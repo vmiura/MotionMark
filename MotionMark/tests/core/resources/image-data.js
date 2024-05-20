@@ -22,6 +22,17 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+function shuffle(array) {
+    let currentIndex = array.length;
+    while (currentIndex != 0) {
+      let randomIndex = Math.floor(Math.random() * currentIndex);
+      currentIndex--;
+      [array[currentIndex], array[randomIndex]] = [
+        array[randomIndex], array[currentIndex]];
+    }
+}
+
 (function() {
 
 var ImageDataStage = Utilities.createSubclass(Stage,
@@ -77,6 +88,9 @@ var ImageDataStage = Utilities.createSubclass(Stage,
             images.push(img);
             benchmark.readyPromise.resolve();
         }.bind(this));
+
+        this.fillOrder = Array.from(Array(this.imageWidth * this.imageHeight).keys())
+        shuffle(this.fillOrder);
     },
 
     _loadImage: function(src) {
@@ -138,6 +152,9 @@ var ImageDataStage = Utilities.createSubclass(Stage,
 
         element.style.top = top + 'px';
         element.style.left = left + 'px';
+
+        let maxPixel = this.imageWidth * this.imageHeight;
+        element._fillIndex = Math.floor(Pseudo.random() * maxPixel) % maxPixel;
     },
 
     animate: function(timeDelta) {
@@ -147,27 +164,24 @@ var ImageDataStage = Utilities.createSubclass(Stage,
 
             // Get image data
             var imageData = context.getImageData(0, 0, this.imageWidth, this.imageHeight);
+            let dataLen = imageData.data.length;
+            let numPixels = dataLen / 4;
+            let fillIndex = element._fillIndex;
 
-            var didDraw = false,
-                neighborPixelIndex,
-                dataLen = imageData.data.length;
-            for (var j = 0; j < dataLen; j += this.pixelStride) {
-                if (imageData.data[j + 3] === 0)
-                    continue;
-
-                // get random neighboring pixel color
-                neighborPixelIndex = this._getRandomNeighboringPixelIndex(j, dataLen);
-
-                // Update the RGB data
-                imageData.data[j] = imageData.data[neighborPixelIndex];
-                imageData.data[j + 1] = imageData.data[neighborPixelIndex + 1];
-                imageData.data[j + 2] = imageData.data[neighborPixelIndex + 2];
-                imageData.data[j + 3] = imageData.data[neighborPixelIndex + 3];
-                didDraw = true;
+            for (var k = 0; k < 50; k++) {
+                let j = this.fillOrder[fillIndex] * 4;
+                fillIndex = (fillIndex + 1) % numPixels;
+                imageData.data[j] = 0;
+                imageData.data[j + 1] = 0;
+                imageData.data[j + 2] = 0;
+                imageData.data[j + 3] = 0;
             }
 
-            if (didDraw)
+            element._fillIndex = fillIndex;
+
+            if (Pseudo.random() > 0.005) {
                 context.putImageData(imageData, 0, 0);
+            }
             else {
                 this._refreshElement(element);
                 element.getContext("2d").drawImage(Stage.randomElementInArray(this.images), 0, 0, this.imageWidth, this.imageHeight);
