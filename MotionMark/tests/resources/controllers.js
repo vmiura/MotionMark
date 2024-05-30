@@ -649,6 +649,15 @@ class RampController extends Controller {
         results[Strings.json.controller] = [];
         this._rampRegressions.forEach(function(ramp) {
             var startIndex = ramp.startIndex, endIndex = ramp.endIndex;
+
+            // Advance startIndex until up to just before the 1st complexity change.
+            while (startIndex < endIndex) {
+                if (controllerSamples.getFieldInDatum(startIndex, Strings.json.complexity) !=
+                    controllerSamples.getFieldInDatum(startIndex + 1, Strings.json.complexity))
+                break;
+                startIndex++;
+            }
+
             var startTime = controllerSamples.getFieldInDatum(startIndex, Strings.json.time);
             var endTime = controllerSamples.getFieldInDatum(endIndex, Strings.json.time);
             var startComplexity = controllerSamples.getFieldInDatum(startIndex, Strings.json.complexity);
@@ -657,8 +666,18 @@ class RampController extends Controller {
             var regression = {};
             results[Strings.json.controller].push(regression);
 
-            var percentage = (ramp.complexity - startComplexity) / (endComplexity - startComplexity);
-            var inflectionTime = startTime + percentage * (endTime - startTime);
+            var inflectionComplexity = ramp.complexity;
+            var inflectionIndex = startIndex;
+
+            // Find the inflection point based on complexity
+            while (inflectionIndex < endIndex) {
+                const complexity = controllerSamples.getFieldInDatum(inflectionIndex + 1, Strings.json.complexity);
+                if (complexity < inflectionComplexity)
+                    break;
+                inflectionIndex++;
+            }
+
+            var inflectionTime = controllerSamples.getFieldInDatum(inflectionIndex, Strings.json.time);
 
             regression[Strings.json.regressions.segment1] = [
                 [startTime, ramp.s2 + ramp.t2 * startComplexity],
