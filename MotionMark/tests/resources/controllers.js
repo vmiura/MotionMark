@@ -495,6 +495,9 @@ class RampController extends Controller {
                 var nextTierComplexity = Math.max(Math.round(Math.pow(10, this._tier)), currentComplexity + 1);
                 stage.tune(nextTierComplexity - currentComplexity);
 
+                if (stage.complexity() != nextTierComplexity)
+                    this._maximumStageComplexity = stage.complexity();
+
                 // Some tests may be unable to go beyond a certain capacity. If so, don't keep moving up tiers
                 if (stage.complexity() - currentComplexity > 0 || nextTierComplexity == 1) {
                     this._tierStartTimestamp = timestamp;
@@ -525,6 +528,12 @@ class RampController extends Controller {
             else {
                 // If the browser is capable of handling the most complex version of the test, use that
                 this._maximumComplexity = currentComplexity;
+            }
+
+            if (this._maximumStageComplexity) {
+                // If we reached the maximum stage complexity, set the maximum such
+                // that the stage complexity is in the middle of the ramp.
+                this._maximumComplexity = Math.round(this._maximumStageComplexity * 1.25);
             }
             
             this._possibleMaximumComplexity = this._maximumComplexity;
@@ -568,7 +577,7 @@ class RampController extends Controller {
         var intervalFrameLengthMean = this._intervalFrameLengthEstimator.mean();
         var intervalFrameLengthStandardDeviation = this._intervalFrameLengthEstimator.standardDeviation();
 
-        if (intervalFrameLengthMean < this.frameLengthDesiredThreshold && this._intervalFrameLengthEstimator.cdf(this.frameLengthDesiredThreshold) > .9) {
+        if (intervalFrameLengthMean * 0.9 < this.frameLengthDesiredThreshold && this._intervalFrameLengthEstimator.cdf(this.frameLengthDesiredThreshold) > .9) {
             this._possibleMinimumComplexity = Math.max(this._possibleMinimumComplexity, currentComplexity);
         } else if (intervalFrameLengthStandardDeviation > 2) {
             // In the case where we might have found a previous interval where the target fps was reached. We hit a significant blip,
@@ -627,8 +636,18 @@ class RampController extends Controller {
             this._maximumComplexity = Math.max(Math.round(.8 * this._maximumComplexity), this._minimumComplexity + 5);
         }
 
+        if (this._maximumStageComplexity) {
+            // If we reached the maximum stage complexity, set the maximum such
+            // that the stage complexity is in the middle of the ramp.
+            this._maximumComplexity = Math.min(Math.round(this._maximumStageComplexity * 1.25), this._maximumComplexity);
+        }
+
         // Next ramp
         stage.tune(this._maximumComplexity - stage.complexity());
+
+        if (stage.complexity() != this._maximumComplexity)
+            this._maximumStageComplexity = stage.complexity();
+        
         this._rampDidWarmup = false;
         // Start timestamp represents start of ramp iteration and warm up
         this._rampStartTimestamp = timestamp;
